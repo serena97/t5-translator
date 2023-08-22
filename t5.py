@@ -66,9 +66,24 @@ class EncoderBlock(torch.nn.Module):
         self.ffww = FeedForward()
 
     def forward(self, x):
+        # (64, 43, 256) in nn.LayerNorm(256) -> normalization should occur in the last dim, which is 256 -> (64, 43, 256)
+        print('2a. self.ln_1(x)', self.ln_1(x).shape)
+        # qkv -> (64, 43, 256) in qkv(256, 256*3) -> (64, 43, 768)
+        print('2b. self.qkv(self.ln_1(x))', self.qkv(self.ln_1(x)).shape)
+        # (64, 43, 768) -> split(256, dim=-1) -> (64, 43, 256)
         q, k, v = self.qkv(self.ln_1(x)).split(EMBD, dim=-1)
+        # (64, 43, 256)
+        print('2c. q', q.shape)
+        # (64, 43, 256)
+        print('2d. x', x.shape)
+        # Attention((64, 43, 256), (64, 43, 256), (64, 43, 256)) -> (64, 43, 256)
+        print('2e. self.attn(q, k, v)', self.attn(q, k, v).shape)
+        # (64, 43, 256) + (64, 43, 256)
         x = x + self.attn(q, k, v)
+        print('2f. x + self.attn(q, k, v)', x.shape)
+        # (64, 43, 256) + (64, 43, 256)
         x = x + self.ffww(self.ln_2(x))
+        print('2g. x + self.ffww(self.ln_2(x))', x.shape)
         return x
 
 
@@ -106,16 +121,34 @@ class T5(torch.nn.Module):
         self.vocab = torch.nn.Linear(EMBD, VOCB)
 
     def forward(self, src, tgt):
+        print('1a. src', src.shape)
+        print('3. tgt before decoding', tgt.shape)
+        
+        # (64, 43) -> (64, 43, 256)
         src = self.tok_embd(src)
+        print('1b. self.tok_embd(src)', src.shape)
+        print('1c. src.size(1)', src.size(1))
+        print('1d. self.pos_embd(torch.arange(src.size(1), device=device))', 
+              self.pos_embd(torch.arange(src.size(1), device=device)).shape)
+        print('1e. src + self.pos_embd(torch.arange(src.size(1), device=device))', 
+              (src + self.pos_embd(torch.arange(src.size(1), device=device))).shape)
+        
+        # src = (64, 43, 256) + (43, 256) -> (64, 43, 256) only because the last dim of both tensors is 256
         src = src + self.pos_embd(torch.arange(src.size(1), device=device))
+        
         for blk in self.enc_blks:
-            src = blk(src)
+            src = blk(src) # (64, 43, 256)
 
         tgt = self.tok_embd(tgt)
+        # (64, 51) -> (64, 51, 256)
         tgt = tgt + self.pos_embd(torch.arange(tgt.size(1), device=device))
         for blk in self.dec_blks:
-            tgt = blk(src, tgt)
+            tgt = blk(src, tgt) # (64, 51, 256)
+        
+        print('3. tgt', tgt.shape)
         tgt = self.vocab(tgt)
+        # (64, 51, 256) -> (64, 51, 10000)
+        print('3b. self.vocab(tgt)', tgt.shape)
         return tgt
 
     def num_params(self):

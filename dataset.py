@@ -64,3 +64,6 @@ if __name__ == "__main__":
     ds = LangDataset()
     print("len(ds)", len(ds))
     print("ds[362]", ds[362])
+    tk = tokenizer.LangTokenizer()
+    decoded_input = tk.decode(ds[362]['input'].tolist())
+    print("ds[362] decode input", decoded_input)
