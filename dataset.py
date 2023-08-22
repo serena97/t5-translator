@@ -7,7 +7,7 @@ class LangDataset(torch.utils.data.Dataset):
     def __init__(self):
         self.column_names = ["id_eng", "eng", "id_cantonese", "cantonese"]
         self.df = pandas.read_csv(
-            "./eng-cantonese.tsv",
+            "./eng-mandarin.tsv",
             delimiter="\t",
             encoding="utf-8",
             on_bad_lines="skip",

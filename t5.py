@@ -97,6 +97,7 @@ class DecoderBlock(torch.nn.Module):
         key = self.key(src)
         val = self.val(src)
 
+        print(f'qry {qry.shape}, key {key.shape}, val {val.shape}')
         tgt = tgt + self.x_attn(qry, key, val)
         tgt = tgt + self.ffww(tgt)
         return tgt

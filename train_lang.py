@@ -23,7 +23,7 @@ dl = torch.utils.data.DataLoader(
 opt = torch.optim.Adam(myT5.parameters(), lr=0.0001)
 
 torch.cuda.empty_cache()
-for epoch in range(2):
+for epoch in range(50):
     org = "I"
     src = torch.tensor([tk.encode(org)]).to(device)
     trs, top_token_ids = myT5.translate(src)
