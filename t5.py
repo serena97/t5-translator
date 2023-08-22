@@ -67,23 +67,14 @@ class EncoderBlock(torch.nn.Module):
 
     def forward(self, x):
         # (64, 43, 256) in nn.LayerNorm(256) -> normalization should occur in the last dim, which is 256 -> (64, 43, 256)
-        print('2a. self.ln_1(x)', self.ln_1(x).shape)
         # qkv -> (64, 43, 256) in qkv(256, 256*3) -> (64, 43, 768)
-        print('2b. self.qkv(self.ln_1(x))', self.qkv(self.ln_1(x)).shape)
         # (64, 43, 768) -> split(256, dim=-1) -> (64, 43, 256)
         q, k, v = self.qkv(self.ln_1(x)).split(EMBD, dim=-1)
-        # (64, 43, 256)
-        print('2c. q', q.shape)
-        # (64, 43, 256)
-        print('2d. x', x.shape)
         # Attention((64, 43, 256), (64, 43, 256), (64, 43, 256)) -> (64, 43, 256)
-        print('2e. self.attn(q, k, v)', self.attn(q, k, v).shape)
         # (64, 43, 256) + (64, 43, 256)
         x = x + self.attn(q, k, v)
-        print('2f. x + self.attn(q, k, v)', x.shape)
         # (64, 43, 256) + (64, 43, 256)
         x = x + self.ffww(self.ln_2(x))
-        print('2g. x + self.ffww(self.ln_2(x))', x.shape)
         return x
 
 
@@ -121,18 +112,9 @@ class T5(torch.nn.Module):
         self.vocab = torch.nn.Linear(EMBD, VOCB)
 
     def forward(self, src, tgt):
-        print('1a. src', src.shape)
-        print('3. tgt before decoding', tgt.shape)
         
         # (64, 43) -> (64, 43, 256)
         src = self.tok_embd(src)
-        print('1b. self.tok_embd(src)', src.shape)
-        print('1c. src.size(1)', src.size(1))
-        print('1d. self.pos_embd(torch.arange(src.size(1), device=device))', 
-              self.pos_embd(torch.arange(src.size(1), device=device)).shape)
-        print('1e. src + self.pos_embd(torch.arange(src.size(1), device=device))', 
-              (src + self.pos_embd(torch.arange(src.size(1), device=device))).shape)
-        
         # src = (64, 43, 256) + (43, 256) -> (64, 43, 256) only because the last dim of both tensors is 256
         src = src + self.pos_embd(torch.arange(src.size(1), device=device))
         
@@ -145,10 +127,8 @@ class T5(torch.nn.Module):
         for blk in self.dec_blks:
             tgt = blk(src, tgt) # (64, 51, 256)
         
-        print('3. tgt', tgt.shape)
         tgt = self.vocab(tgt)
         # (64, 51, 256) -> (64, 51, 10000)
-        print('3b. self.vocab(tgt)', tgt.shape)
         return tgt
 
     def num_params(self):
@@ -157,16 +137,25 @@ class T5(torch.nn.Module):
         print(f"Total Parameters: {gpt_params} | Embedding: {emb_params}")
         return {"gpt_params": gpt_params, "emb_params": emb_params}
 
-    def translate(self, src, num=20):
+    def translate(self, src, num=5):
         self.eval()
         tgt = torch.tensor([[2]], device=device)
+        top_token_ids = None
         for _ in range(num):
             with torch.no_grad():
                 out = self(src, tgt)
+                
+                softmax = torch.nn.Softmax(dim=-1)
+                softmax_output = softmax(out)
+                top_k = 10
+                _, top_token_ids = torch.topk(softmax_output[0, -1, :], top_k)
+                print('top_token_ids', top_token_ids)
+                
                 out = out[:, -1, :]
                 nxt = torch.argmax(out, dim=-1, keepdim=True)
+            
                 if nxt.item() == 3:
                     break
                 tgt = torch.cat((tgt, nxt), dim=1)
         self.train()
-        return tgt
+        return tgt, top_token_ids
